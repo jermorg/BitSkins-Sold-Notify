@@ -1,10 +1,11 @@
 const fs = require('fs').promises;
 const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
-const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID } = require('./config.json');
+const path = require('path');
+const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID } = require( path.join(__dirname, 'config.json'));
 
 const bot = new TelegramBot(TELEGRAM_TOKEN);
-const DATA_FILE = './data.json';
+const DATA_FILE = path.join(__dirname, 'data.json');
 let tokens = [];
 let balances = {};
 
@@ -53,33 +54,35 @@ async function checkBalance(token) {
 				},
 			}
 		);
-
+        
 		const newBalance = (response.data?.balance ?? 0) / 1000;
-
+                            
 		if (balances[token] !== undefined && balances[token] !== newBalance) {
 			const accaunt = await getAccauntData(token)
 			const lastTransaction = await getAccauntLastSell(token)
 			const old = balances[token];
 			const diff = newBalance - old;
 			const sign = diff > 0 ? '+' : '';
-			await bot.sendMessage(
-				TELEGRAM_CHAT_ID,
-`💸 Balance update for **${accaunt.steam_username}**
+            
+            	const message = 
+`💸 Balance update for ${accaunt.steam_username}
 
-🔄 **$${old.toFixed(2)} → $${newBalance.toFixed(2)} (${sign}$${diff.toFixed(2)})**
+🔄 $${old.toFixed(2)} → $${newBalance.toFixed(2)} (${sign}$${diff.toFixed(2)})
 
-`+ '```📦LastTransaction:' +
-`
+
+📦 LastTransaction:
 ${lastTransaction.list[0].name}
-Buyer country: ${lastTransaction.list[0].buyer_country ? lastTransaction.list[0].buyer_country : "none"}
+Buyer country: ${lastTransaction.list[0].buyer_country || "none"}
 Received: ${(lastTransaction.list[0].price - lastTransaction.list[0].fee_amount) / lastTransaction.list[0].fee}
 - Sold: ${lastTransaction.list[0].price / lastTransaction.list[0].fee}
 - Fee amount: ${lastTransaction.list[0].fee_amount / lastTransaction.list[0].fee}
-` + '```', { parse_mode: "Markdown" });
+`;
+            
+			await bot.sendMessage(TELEGRAM_CHAT_ID, message);
+            
+            balances[token] = newBalance;
+			await saveBalances();
 		}
-
-		balances[token] = newBalance;
-		await saveBalances();
 
 	} catch (error) {
 		console.error('❌ Request failed', error.response?.data || error.message);
@@ -88,14 +91,14 @@ Received: ${(lastTransaction.list[0].price - lastTransaction.list[0].fee_amount)
 
 async function startListAccount(token) {
 	await checkBalance(token);
-	setInterval(() => checkBalance(token), 5 * 60 * 1000);
+	setInterval(() => checkBalance(token), 3 * 60 * 1000);//5 *
 }
 
 async function start() {
 	await loadBalances();
 
 	try {
-		const data = await fs.readFile('./tokens.txt', 'utf8');
+		const data = await fs.readFile( path.join(__dirname, 'tokens.txt'), 'utf8');
 		tokens = data.trim().split(/\s+/);
 		console.log('Loaded tokens:', tokens.length);
 
