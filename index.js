@@ -4,7 +4,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const path = require('path');
 const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID } = require( path.join(__dirname, 'config.json'));
 
-const bot = new TelegramBot(TELEGRAM_TOKEN);
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const DATA_FILE = path.join(__dirname, 'data.json');
 let tokens = [];
 let balances = {};
@@ -42,6 +42,16 @@ async function getAccauntLastSell(token){
 	return res.data;
 }
 
+async function sendBalanceList(tokens) {
+	let resultmsg = `Balances | Lock:\n`
+
+	for (let i = 0; i < tokens.length; i++) {
+		let acc = await getAccauntData(tokens[i]);
+		resultmsg += `- ${acc.steam_username}: $${(acc.balance / 1000).toFixed(2)} | $${(acc.qbalance / 1000).toFixed(2)}\n`;
+	}
+
+	await bot.sendMessage(TELEGRAM_CHAT_ID, resultmsg);
+}
 
 async function checkBalance(token) {
 	try {
@@ -88,6 +98,15 @@ Received: ${(lastTransaction.list[0].price - lastTransaction.list[0].fee_amount)
 		console.error('❌ Request failed', error.response?.data || error.message);
 	}
 }
+
+
+bot.on('message', async (msg) => {
+    if (msg.chat.id !== TELEGRAM_CHAT_ID) return;
+
+    if(!msg.text.includes('/list')) return;
+
+    await sendBalanceList(tokens)
+});
 
 async function startListAccount(token) {
 	await checkBalance(token);
